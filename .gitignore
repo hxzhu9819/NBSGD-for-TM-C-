@@ -1,0 +1,14 @@
+*npy
+examples/*/data/
+examples/*/acllmdb/
+examples/*/results/
+examples/data/*
+*jl
+*.out
+*.egg-info
+build
+examples/results/*
+basenet.egg-info/*
+build/*
+dist/*
+*__pycache__*
