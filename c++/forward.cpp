@@ -1,4 +1,5 @@
 #include "forward.hpp"
+#include "cross-entropy.h"
 using namespace std;
 
 // def forward(self, feat_idx):
@@ -69,11 +70,32 @@ int main(){
         }
     }
 
-    // Test
-    for(int i = 0; i < 10; i ++){
-        cout<<x[i]<<endl;
+    // // Test
+    // for(int i = 0; i < 10; i ++){
+    //     cout << x[i] << endl;
+    // }
+
+    // Calculate Loss (Cross-entropy)
+    float loss = CrossEntropyLoss(x, target, BATCH_SIZE, 2, true);
+    cout << "loss: " << loss << endl;
+
+    //backward
+    float* delta = new float[BATCH_SIZE * R_WIDTH];
+    for(uint32_t i = 0; i < BATCH_SIZE; ++i){
+        float numerator = target[i] ? exp(x[i * R_DEPTH]) : exp(x[i * R_DEPTH + 1]);
+        for(uint32_t j = 0; j < R_WIDTH; ++j){
+            //cout << i << " " << j <<" " << chosen_r[i * R_WIDTH + j] << " "<<  x[i * R_DEPTH + 1] <<  " "<< x[i*R_DEPTH] <<endl;
+            delta[i * R_WIDTH + j] = (chosen_r[i * R_WIDTH + j] / R_ADJ) * numerator / ( (exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH])) );
+        }
+        //cout<<(exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH]))<<" "<< numerator << " " << exp(x[i*R_DEPTH]) << " " << x[i*R_DEPTH +1] << endl;
     }
     
+    for(int i = 0; i < 10; i ++){
+        //cout << chosen_r[i] << endl;
+        cout << delta[i] << " " << chosen_w[i] << endl;
+    }
 
+    //step
+    
 
 }
