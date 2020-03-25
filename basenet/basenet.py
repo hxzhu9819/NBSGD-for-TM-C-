@@ -147,6 +147,7 @@ class BaseNet(nn.Module):
     # Batch steps
     
     def train_batch(self, data, target, metric_fns=None, forward=None):
+        np.savetxt('y_train.out', target, fmt='%d', delimiter=',')
         assert self.opt is not None, "BaseNet: self.opt is None"
         assert self.loss_fn is not None, 'BaseNet: self.loss_fn is None'
         assert self.training, 'BaseNet: self.training == False'
