@@ -1,2 +1,5 @@
 tqdm==4.19.5
 numpy==1.14.2
+sklearn
+scipy
+torch
