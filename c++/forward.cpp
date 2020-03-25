@@ -70,10 +70,11 @@ int main(){
         }
     }
 
-    // // Test
-    // for(int i = 0; i < 10; i ++){
-    //     cout << x[i] << endl;
-    // }
+    // Test
+    cout << "printing x" << endl;
+    for(int i = 0; i < 10; i ++){
+        cout << x[i] << endl;
+    }
 
     // Calculate Loss (Cross-entropy)
     float loss = CrossEntropyLoss(x, target, BATCH_SIZE, 2, true);

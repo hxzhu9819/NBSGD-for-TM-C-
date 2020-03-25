@@ -1,6 +1,6 @@
 CC=g++ -g -Wall
 
-SOURCES=forward.cpp
+SOURCES=forward.cpp cross-entropy.cpp
 
 OBJS=${SOURCES:.cpp=.o}
 
