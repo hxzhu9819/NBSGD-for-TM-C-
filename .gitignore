@@ -14,3 +14,6 @@ dist/*
 *__pycache__*
 .DS*
 .idea/
+*.o
+app
+forward
