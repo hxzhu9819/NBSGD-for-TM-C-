@@ -163,13 +163,32 @@ class BaseNet(nn.Module):
         
         output = forward(data)
         loss = self.loss_fn(output, target)
+        print(loss.data.item())
         loss.backward()
         
         if self.clip_grad_norm > 0:
             _clip_grad_norm(self.params, self.clip_grad_norm)
-        
+
+        probability = F.softmax(output)
+        y_onehot = torch.FloatTensor(output.shape[0], output.shape[1])
+        y_onehot.zero_()
+        y_onehot.scatter_(1, target.reshape(output.shape[0], 1), 1)
+        dlossdy = probability - y_onehot
+
+        masked_r = torch.FloatTensor(self.r.weight.shape[0], self.r.weight.shape[1]).zero_()
+        delta_w = torch.FloatTensor(self.w.weight.shape[0], self.w.weight.shape[1]).zero_()
+        for i in range(output.shape[0]):
+            for j in range(self.r.weight.shape[1]):
+                masked_r.zero_()
+                current_dlossdy = dlossdy[i][j]
+                nnz_size = data[i][:].unique()[1:].size()
+                masked_r[data[i][:].unique()[1:], j] = self.r.weight[data[i][:].unique()[1:], j]
+                delta_w[:, 0] += current_dlossdy*masked_r[:, j]/self.r_adj
+                # delta_w[0, 0] += current_dlossdy*()*/self.r_adj
+        delta_w = delta_w / output.shape[0]
+
+
         self.opt.step()
-        
         metrics = [m(output, target) for m in metric_fns] if metric_fns is not None else []
         return float(loss), metrics
     
