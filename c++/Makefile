@@ -1,6 +1,6 @@
 CC=g++ -g -Wall
 
-SOURCES=forward.cpp cross-entropy.cpp
+SOURCES=forward.cpp cross-entropy.cpp softmax.cpp
 
 OBJS=${SOURCES:.cpp=.o}
 

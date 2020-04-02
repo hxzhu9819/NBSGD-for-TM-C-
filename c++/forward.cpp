@@ -1,6 +1,9 @@
 #include "forward.hpp"
 #include "cross-entropy.h"
+#include "softmax.h"
+#include <math.h> 
 using namespace std;
+
 
 // def forward(self, feat_idx):
 //         w = self.w(feat_idx) + self.w_adj
@@ -26,8 +29,8 @@ float R_ADJ = 10;
 uint32_t *feat_idx = feat;
 float *w = w_data;
 //float *w = new float[VOCAB_SIZE];
-// r[2 * vocab_size + 2,1] from .hpp
-// w from init [vocab_size+1, 1]
+// r[2 * vocab_size + 2,1] from .hpp: in python r[vocab_size+1, 2]
+// w from init [vocab_size+1, 1]: in python w[vocab_size+1, 1]
 
 int main(){
     // Extract entries from r according to feat_idx ( r = self.r(feat_idx) )
@@ -51,6 +54,14 @@ int main(){
         }
     }
 
+    #ifdef DEBUG
+    cout << "printing chosen r" << endl;
+    for(int i = 0; i < 10; i ++){
+        cout << chosen_r[i] << endl;
+    }
+    #endif
+    
+
     // Extract entries from w according to feat_idx ( w = self.w(feat_idx) + self.w_adj )
     float *chosen_w = new float[BATCH_SIZE * R_WIDTH];
     for(uint32_t i = 0; i < BATCH_SIZE; ++i){
@@ -70,33 +81,179 @@ int main(){
         }
     }
 
-    // Test
+    #ifdef DEBUG
     cout << "printing x" << endl;
     for(int i = 0; i < 10; i ++){
         cout << x[i] << endl;
     }
+    #endif
 
-    // Calculate Loss (Cross-entropy)
+
+    /*****************************
+    Calculate Loss (Cross-entropy)
+    ******************************/
+   
     float loss = CrossEntropyLoss(x, target, BATCH_SIZE, 2, true);
     cout << "loss: " << loss << endl;
 
-    //backward
-    float* delta = new float[BATCH_SIZE * R_WIDTH];
-    for(uint32_t i = 0; i < BATCH_SIZE; ++i){
-        float numerator = target[i] ? exp(x[i * R_DEPTH]) : exp(x[i * R_DEPTH + 1]);
-        for(uint32_t j = 0; j < R_WIDTH; ++j){
-            //cout << i << " " << j <<" " << chosen_r[i * R_WIDTH + j] << " "<<  x[i * R_DEPTH + 1] <<  " "<< x[i*R_DEPTH] <<endl;
-            delta[i * R_WIDTH + j] = (chosen_r[i * R_WIDTH + j] / R_ADJ) * numerator / ( (exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH])) );
-        }
-        //cout<<(exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH]))<<" "<< numerator << " " << exp(x[i*R_DEPTH]) << " " << x[i*R_DEPTH +1] << endl;
+    /*****************************
+               Softmax
+    ******************************/
+    softmax(x, R_DEPTH, BATCH_SIZE);
+
+    #ifdef DEBUG
+    cout << "after softmax. x:" << endl;
+    for(int i = 0; i < 10; i ++){
+        cout << x[i] << endl;
     }
+    #endif
+    // end forward
+
+
+    /*****************************
+             Backward
+    ******************************/
+
+    // generate target
+    float* target_2d = new float[BATCH_SIZE * R_DEPTH];
+    for(int i = 0; i < BATCH_SIZE; i++) {
+        for(int j = 0; j < R_DEPTH; j++){
+            target_2d[i*R_DEPTH + j] = target[i] == j ? 1 : 0; 
+            // cout << "t-j:" << target[i] << j << "target_2d[" << i*R_DEPTH + j << "]= " << target_2d[i*R_DEPTH + j] << endl;
+        }
+    }
+    #ifdef DEBUG
+    cout << "target2d:" << endl;
+    for(int i = 0; i < 10; i ++){
+        cout << target_2d[i] << " ";
+        if (i % 2 != 0) cout << endl;
+    }
+    #endif
+
+    float* dlossdy = new float[BATCH_SIZE * R_DEPTH];
+    for(int i = 0; i < BATCH_SIZE * R_DEPTH; i++){
+        dlossdy[i] = x[i] - target_2d[i];
+    }
+
+
+    #ifdef DEBUG
+    cout << "dlossdy:" << endl;
+    for(int i = 0; i < 10; i ++){
+        cout << dlossdy[i] << " ";
+        if (i % 2 != 0) cout << endl;
+    }
+    #endif
+
+    //float* delta_w= new float[BATCH_SIZE * R_WIDTH];  // r is 100*1000
+    // // iterate through chosen_w
+    // for (uint32_t i = 0; i < BATCH_SIZE; i++) {  // Batch size
+    //     for (uint32_t j = 0; j < R_WIDTH; j++) {  // R_WIDTH
+    //         for (uint32_t p = 0; p < BATCH_SIZE; p++) {  // Update per batch
+    //             for (uint32_t k = 0; k < R_DEPTH; k++) {
+    //                 delta_w[i * R_WIDTH + j] += chosen_r[i * R_WIDTH + j] * dlossdy[p * R_DEPTH + k] / R_ADJ;
+    //             }
+    //         }
+    //     }
+    // }
+
+    // iterate through chosen_w
+    // for (uint32_t i = 0; i < BATCH_SIZE; i++) {  // Batch size
+    //     for (uint32_t j = 0; j < R_WIDTH; j++) {  // R_WIDTH
+    //         for (uint32_t k = 0; k < R_DEPTH; k++) {
+    //             delta_w[i * R_WIDTH + j] += chosen_r[k * BATCH_SIZE * R_WIDTH + i * R_WIDTH + j] * dlossdy[i * R_DEPTH + k] / R_ADJ;
+    //         }
+    //     }
+    // }
+
+    float masked_r[2*(VOCAB_SIZE+1)];
+    float* delta_w = new float[(VOCAB_SIZE+1)];
+    for (uint32_t i = 0; i < BATCH_SIZE; i++) {  // Batch size
+        for (uint32_t j = 0; j < R_DEPTH; j++) {  // R_DEPTH
+                float current_dlossdy = dlossdy[i * R_DEPTH + j];
+                //zero
+                for(int k = 0; k < 2*(VOCAB_SIZE+1); k++){
+                    masked_r[k] = 0;
+                }
+                //masked_r[data[i][:]] = self.r.weight[data[i][:]]
+                for(int k = 0; k < R_WIDTH; k++){
+                    for(int l = 0; l < R_DEPTH; l++){
+                        masked_r[2* feat_idx[i * R_WIDTH + k] + l] = r[2* feat_idx[i * R_WIDTH + k] + l];
+                    }
+                }
+                //delta_w[:, 0] += current_dlossdy*masked_r[:, j]/self.r_adj
+                for(int k = 0; k < (VOCAB_SIZE+1); k++) {
+                    delta_w[k] += current_dlossdy * masked_r[2*k+j] / R_ADJ;
+                }
+        }
+    }
+
+    for (uint32_t i = 0; i < BATCH_SIZE * R_WIDTH; i++) {
+        delta_w[i] /= BATCH_SIZE;
+        //delta_w[i] = abs(delta_w[i]) < 1e-10 ? 0 : delta_w[i];
+    }
+
+    cout << "delta_w:" << endl;
+    for(int i = 0; i < 10; i ++){
+        cout << delta_w[i] << " ";
+    }
+    cout << endl;
+
+
+    // float* delta = new float[BATCH_SIZE * R_WIDTH];
+    // for(uint32_t i = 0; i < BATCH_SIZE; ++i){
+    //     float numerator = target[i] ? exp(x[i * R_DEPTH]) : exp(x[i * R_DEPTH + 1]);
+    //     for(uint32_t j = 0; j < R_WIDTH; ++j){
+    //         //cout << i << " " << j <<" " << chosen_r[i * R_WIDTH + j] << " "<<  x[i * R_DEPTH + 1] <<  " "<< x[i*R_DEPTH] <<endl;
+    //         delta[i * R_WIDTH + j] = (chosen_r[i * R_WIDTH + j] / R_ADJ) * numerator / ( (exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH])) );
+    //     }
+    //     //cout<<(exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH]))<<" "<< numerator << " " << exp(x[i*R_DEPTH]) << " " << x[i*R_DEPTH +1] << endl;
+    // }
     
+    #ifdef DEBUG
     for(int i = 0; i < 10; i ++){
         //cout << chosen_r[i] << endl;
         cout << delta[i] << " " << chosen_w[i] << endl;
     }
+    #endif
 
-    //step
+    //step using adam
+    float alpha = 0.01;
+    float beta_1 = 0.9;
+    float beta_2 = 0.999;
+    float epsilon = 1e-8;
+    
+
+    float* new_w = new float[(VOCAB_SIZE+1)];
+    for(int i = 0; i < (VOCAB_SIZE+1); i++){
+        new_w[i] = w[i];
+    }
+
+    for(int i = 0; i < (VOCAB_SIZE+1); i++){
+        float m_t = 0;
+        float v_t = 0;
+        int t = 0;
+        while(true) {
+            t += 1;
+            m_t = beta_1 * m_t + (1 - beta_1) * delta_w[i];	// updates the moving averages of the gradientgd
+            v_t = beta_2 * v_t + (1 - beta_2) * (delta_w[i] * delta_w[i]);	 // updates the moving averages of the squared gradient
+            float m_cap = m_t / (1-pow(beta_1, t));  // calculates the bias-corrected estimates
+            float v_cap = v_t / (1-pow(beta_2, t)); // calculates the bias-corrected estimates
+            float w_old = new_w[i];						
+            new_w[i] = new_w[i] - (alpha * m_cap) / (sqrt(v_cap) + epsilon);  // updates the parameters
+            if(abs(w_old - new_w[i]) < 1e-10){	// checks if it is converged or not
+                cout << i <<": " <<abs(w_old - new_w[i]) << " "<< (alpha * m_cap) / (sqrt(v_cap) + epsilon) << endl;
+                break;
+            }
+        }
+    }
+
+    cout << "new w:" << endl;
+    for(int i = 0; i < 10; i ++){
+        cout << w[i] << " -> " << new_w[i] << endl;
+    }
+    cout << endl;
+
+
 
     
     
