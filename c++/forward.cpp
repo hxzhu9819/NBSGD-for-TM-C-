@@ -217,7 +217,7 @@ int main(){
     #endif
 
     //step using adam
-    float alpha = 0.01;
+    float alpha = 0.001;
     float beta_1 = 0.9;
     float beta_2 = 0.999;
     float epsilon = 1e-8;
@@ -240,11 +240,15 @@ int main(){
             float v_cap = v_t / (1-pow(beta_2, t)); // calculates the bias-corrected estimates
             float w_old = new_w[i];						
             new_w[i] = new_w[i] - (alpha * m_cap) / (sqrt(v_cap) + epsilon);  // updates the parameters
-            if(abs(w_old - new_w[i]) < 1e-10){	// checks if it is converged or not
-                cout << i <<": " <<abs(w_old - new_w[i]) << " "<< (alpha * m_cap) / (sqrt(v_cap) + epsilon) << endl;
-                break;
-            }
+            // cout << i <<": " << abs(w_old - new_w[i]) << " "<< (alpha * m_cap) / (sqrt(v_cap) + epsilon) << endl;
+            // if(abs(w_old - new_w[i]) < 1e-5){	// checks if it is converged or not
+            //     break;
+            // }
+            break;
+            
         }
+        // cout << w[i] << " -> " << new_w[i] << endl;
+        // cout <<"--------"<<endl;
     }
 
     cout << "new w:" << endl;
