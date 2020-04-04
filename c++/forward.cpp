@@ -4,6 +4,7 @@
 #include <math.h> 
 using namespace std;
 
+#define DEBUG
 
 // def forward(self, feat_idx):
 //         w = self.w(feat_idx) + self.w_adj
@@ -207,48 +208,105 @@ int main(){
     //         delta[i * R_WIDTH + j] = (chosen_r[i * R_WIDTH + j] / R_ADJ) * numerator / ( (exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH])) );
     //     }
     //     //cout<<(exp(x[i*R_DEPTH + 1]) + exp(x[i*R_DEPTH]))<<" "<< numerator << " " << exp(x[i*R_DEPTH]) << " " << x[i*R_DEPTH +1] << endl;
+    // } 
+    // #ifdef DEBUG
+    // for(int i = 0; i < 10; i ++){
+    //     //cout << chosen_r[i] << endl;
+    //     cout << delta[i] << " " << chosen_w[i] << endl;
     // }
-    
-    #ifdef DEBUG
-    for(int i = 0; i < 10; i ++){
-        //cout << chosen_r[i] << endl;
-        cout << delta[i] << " " << chosen_w[i] << endl;
-    }
-    #endif
+    // #endif
 
-    //step using adam
-    float alpha = 0.001;
-    float beta_1 = 0.9;
-    float beta_2 = 0.999;
-    float epsilon = 1e-8;
+
+    // //step using adam
+    
+    // float alpha = 0.001;
+    // float beta_1 = 0.9;
+    // float beta_2 = 0.999;
+    // float epsilon = 1e-8;
+    
+
+    // float* new_w = new float[(VOCAB_SIZE+1)];
+    // for(int i = 0; i < (VOCAB_SIZE+1); i++){
+    //     new_w[i] = w[i];
+    // }
+
+    // for(int i = 0; i < (VOCAB_SIZE+1); i++){
+    //     float m_t = 0;
+    //     float v_t = 0;
+    //     int t = 0;
+    //     while(true) {
+    //         t += 1;
+    //         m_t = beta_1 * m_t + (1 - beta_1) * delta_w[i];	// updates the moving averages of the gradientgd
+    //         v_t = beta_2 * v_t + (1 - beta_2) * (delta_w[i] * delta_w[i]);	 // updates the moving averages of the squared gradient
+    //         float m_cap = m_t / (1-pow(beta_1, t));  // calculates the bias-corrected estimates
+    //         float v_cap = v_t / (1-pow(beta_2, t)); // calculates the bias-corrected estimates
+    //         float w_old = new_w[i];						
+    //         new_w[i] = new_w[i] - (alpha * m_cap) / (sqrt(v_cap) + epsilon);  // updates the parameters
+    //         // cout << i <<": " << abs(w_old - new_w[i]) << " "<< (alpha * m_cap) / (sqrt(v_cap) + epsilon) << endl;
+    //         // if(abs(w_old - new_w[i]) < 1e-5){	// checks if it is converged or not
+    //         //     break;
+    //         // }
+    //         break;
+            
+    //     }
+    //     // cout << w[i] << " -> " << new_w[i] << endl;
+    //     // cout <<"--------"<<endl;
+    // }
+
+    // cout << "new w:" << endl;
+    // for(int i = 0; i < 10; i ++){
+    //     cout << w[i] << " -> " << new_w[i] << endl;
+    // }
+    // cout << endl;
+
+    float lr = 0.02;
+    float beta1 = 0.9;
+    float beta2 = 0.999;
+    float eps = 1e-08;
+    float weight_decay = 1e-06;
     
 
     float* new_w = new float[(VOCAB_SIZE+1)];
+    float* grad  = new float[(VOCAB_SIZE+1)];
     for(int i = 0; i < (VOCAB_SIZE+1); i++){
         new_w[i] = w[i];
+        grad[i] = delta_w[i];
     }
 
-    for(int i = 0; i < (VOCAB_SIZE+1); i++){
-        float m_t = 0;
-        float v_t = 0;
-        int t = 0;
-        while(true) {
-            t += 1;
-            m_t = beta_1 * m_t + (1 - beta_1) * delta_w[i];	// updates the moving averages of the gradientgd
-            v_t = beta_2 * v_t + (1 - beta_2) * (delta_w[i] * delta_w[i]);	 // updates the moving averages of the squared gradient
-            float m_cap = m_t / (1-pow(beta_1, t));  // calculates the bias-corrected estimates
-            float v_cap = v_t / (1-pow(beta_2, t)); // calculates the bias-corrected estimates
-            float w_old = new_w[i];						
-            new_w[i] = new_w[i] - (alpha * m_cap) / (sqrt(v_cap) + epsilon);  // updates the parameters
-            // cout << i <<": " << abs(w_old - new_w[i]) << " "<< (alpha * m_cap) / (sqrt(v_cap) + epsilon) << endl;
-            // if(abs(w_old - new_w[i]) < 1e-5){	// checks if it is converged or not
-            //     break;
-            // }
-            break;
-            
+    float exp_avg[(VOCAB_SIZE+1)];
+    float exp_avg_sq[(VOCAB_SIZE+1)];
+
+    int step = 0;
+
+    step += 1;
+
+    double bias_correction1 = 1.0 - pow(beta1, step);
+    double bias_correction2 = 1.0 - pow(beta2, step);
+
+    // weight decay
+    if(weight_decay != 0) {
+        for(int i = 0; i < (VOCAB_SIZE+1); i++) {
+            grad[i] += weight_decay * w[i];
         }
-        // cout << w[i] << " -> " << new_w[i] << endl;
-        // cout <<"--------"<<endl;
+    }
+
+    // decay the first and second moment rnuning average coefficient
+    for(int i = 0; i < (VOCAB_SIZE+1); i++) {
+        exp_avg[i] *= beta1;
+        exp_avg[i] += (1 - beta1) * grad[i];
+        exp_avg_sq[i] *= beta2;
+        exp_avg_sq[i] += (1 - beta2) * grad[i] * grad[i];
+    }
+
+    double denom[(VOCAB_SIZE+1)];
+    for(int i = 0; i < (VOCAB_SIZE+1); i++) {
+        denom[i] = (sqrt(exp_avg_sq[i]) / sqrt(bias_correction2)) + eps;
+    }
+
+    float step_size = lr / bias_correction1;
+
+    for(int i = 0; i < (VOCAB_SIZE+1); i++) {
+        new_w[i] += -step_size * exp_avg[i] / denom[i];
     }
 
     cout << "new w:" << endl;
@@ -256,6 +314,13 @@ int main(){
         cout << w[i] << " -> " << new_w[i] << endl;
     }
     cout << endl;
+
+
+
+
+
+
+
 
 
 
